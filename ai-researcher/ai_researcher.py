@@ -50,7 +50,7 @@ def search_web_tavily(state: ResearchState):
         "web_results": [result['content'] for result in search_results]
     }
 
-def search_web_DDGS(state: ResearchState):
+def search_web(state: ResearchState):
     # results = DDGS(state["query"], max_results=3)
     with DDGS() as ddgs:
         results = ddgs.text("your query here")
@@ -60,40 +60,11 @@ def search_web_DDGS(state: ResearchState):
         "web_results": [result['body'] for result in results]
     }
 
-def search_web(state: ResearchState):
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-    }
-    response = requests.get(f"https://www.google.com/search?q={state['query']}", headers=headers)
-
-    # Debug: Print the raw HTML to verify structure
-    print(response.text)
-
-    soup = BeautifulSoup(response.text, "html.parser")
-
-    # Extract search results
-    results = soup.select("div.bNg8Rb")  # Updated selector for Google search results
-    if not results:
-        print("No results found. Check the HTML structure or if Google blocked the request.")
-
-    sources = []
-    web_results = []
-
-    for result in results:
-        link = result.select_one("a")  # Extract the link
-        snippet = result.select_one(".VwiC3b")  # Extract the snippet
-
-        if link and snippet:
-            sources.append(link["href"])
-            web_results.append(snippet.text)
-
-    return {
-        "sources": sources,
-        "web_results": web_results
-    }
-
 def summarize_results(state: ResearchState):
     model = ChatOllama(model="deepseek-r1:8b")
+    # model = ChatOllama(model="gemma3:4b")
+    # model = ChatOllama(model="gemma3:4b-it-qat")
+
     prompt = ChatPromptTemplate.from_template(summary_template)
     chain = prompt | model
 
