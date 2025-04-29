@@ -6,20 +6,24 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_ollama import ChatOllama
 from langgraph.graph import START, END, StateGraph
 from typing_extensions import TypedDict
+from duckduckgo_search import DDGS
+
+import requests
+from bs4 import BeautifulSoup
 
 summary_template = """
-Summarize the following content into a concise paragraph that directly addresses the query. Ensure the summary 
+Summarize the following content into a concise paragraph that directly addresses the query. Ensure the summary
 highlights the key points relevant to the query while maintaining clarity and completeness.
 Query: {query}
 Content: {content}
 """
 
-generate_response_template = """    
-Given the following user query and content, generate a response that directly answers the query using relevant 
-information from the content. Ensure that the response is clear, concise, and well-structured. 
-Additionally, provide a brief summary of the key points from the response. 
-Question: {question} 
-Context: {context} 
+generate_response_template = """
+Given the following user query and content, generate a response that directly answers the query using relevant
+information from the content. Ensure that the response is clear, concise, and well-structured.
+Additionally, provide a brief summary of the key points from the response.
+Question: {question}
+Context: {context}
 Answer:
 """
 
@@ -37,13 +41,55 @@ class ResearchStateOutput(TypedDict):
     sources: list[str]
     response: str
 
-def search_web(state: ResearchState):
+def search_web_tavily(state: ResearchState):
     search = TavilySearchResults(max_results=3)
     search_results = search.invoke(state["query"])
 
     return  {
         "sources": [result['url'] for result in search_results],
         "web_results": [result['content'] for result in search_results]
+    }
+
+def search_web_DDGS(state: ResearchState):
+    # results = DDGS(state["query"], max_results=3)
+    with DDGS() as ddgs:
+        results = ddgs.text("your query here")
+        print(results)
+    return {
+        "sources": [result['href'] for result in results],
+        "web_results": [result['body'] for result in results]
+    }
+
+def search_web(state: ResearchState):
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    }
+    response = requests.get(f"https://www.google.com/search?q={state['query']}", headers=headers)
+
+    # Debug: Print the raw HTML to verify structure
+    print(response.text)
+
+    soup = BeautifulSoup(response.text, "html.parser")
+
+    # Extract search results
+    results = soup.select("div.bNg8Rb")  # Updated selector for Google search results
+    if not results:
+        print("No results found. Check the HTML structure or if Google blocked the request.")
+
+    sources = []
+    web_results = []
+
+    for result in results:
+        link = result.select_one("a")  # Extract the link
+        snippet = result.select_one(".VwiC3b")  # Extract the snippet
+
+        if link and snippet:
+            sources.append(link["href"])
+            web_results.append(snippet.text)
+
+    return {
+        "sources": sources,
+        "web_results": web_results
     }
 
 def summarize_results(state: ResearchState):

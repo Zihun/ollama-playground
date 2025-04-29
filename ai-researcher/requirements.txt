@@ -4,3 +4,5 @@ langchain_community
 langchain_ollama
 tavily-python
 langgraph
+duckduckgo-search
+beautifulsoup4
